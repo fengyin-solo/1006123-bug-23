@@ -16,6 +16,10 @@
         <span class="stat-label">{{ item.label }}</span>
         <strong class="stat-value">{{ item.value }}</strong>
       </article>
+      <article class="stat-card">
+        <span class="stat-label">已闭环隐患（来自安全巡检）</span>
+        <strong class="stat-value">{{ closedTodos.length }}</strong>
+      </article>
     </div>
 
     <p class="status-legend">
@@ -63,9 +67,38 @@
       </tbody>
     </table>
 
+    <h3 class="todo-head">班组进场待办 · 隐患闭环结论</h3>
+    <p class="page-desc">条目直接折算自安全巡检记录，已闭环条数与巡检列表保持一致。</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>巡检编号</th>
+          <th>巡检区域</th>
+          <th>隐患等级</th>
+          <th>闭环时间</th>
+          <th>闭环结论</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="todo in closedTodos" :key="String(todo.id)">
+          <td>{{ todo.巡检编号 }}</td>
+          <td>{{ todo.巡检区域 }}</td>
+          <td>{{ todo.隐患等级 }}</td>
+          <td>{{ todo.闭环时间 }}</td>
+          <td>{{ todo.闭环结论 }}</td>
+        </tr>
+        <tr v-if="!closedTodos.length">
+          <td colspan="5" class="empty-state">暂无已闭环隐患，闭环结论确认后会进入本待办清单</td>
+        </tr>
+      </tbody>
+    </table>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条班组进场记录</span>
-      <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
+      <span v-if="errorMessage" class="error-text">
+        {{ errorMessage }}
+        <button class="link" type="button" @click="reload">重试取数</button>
+      </span>
     </footer>
   </section>
 </template>
@@ -74,12 +107,13 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  closureTodos,
   downloadEntries,
   listEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { ClosureTodo, EntryRow } from '@/data/types'
 
 const meta = moduleMeta('crew')
 const columns = ["班组编号", "班组名称", "主要工种", "班组长", "进场人数", "安全交底日期", "联系电话", "在场状态"]
@@ -92,6 +126,8 @@ const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+// 闭环待办沿用巡检记录的既有读取方式，不另写一套。
+const closedTodos = ref<ClosureTodo[]>([])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,10 +164,20 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    closedTodos.value = closureTodos()
   } catch (error) {
+    rows.value = []
+    total.value = 0
     errorMessage.value = error instanceof Error ? error.message : '班组进场列表读取失败'
   }
 }
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.todo-head {
+  margin: 20px 0 4px;
+  font-size: 15px;
+}
+</style>
