@@ -35,3 +35,12 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .error-text { color: #b42318; }
 .status-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 10px; font-size: 12px; color: var(--muted); }
 .legend-item { background: #eef2f7; border-radius: 999px; padding: 2px 10px; }
+.identity-select { font-size: 12px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+/* 待整改/异常记录在列表里挂红色标记：只认 abnormal 一个口径，闭环清掉就不再挂红 */
+.data-table tr.row-abnormal td { background: #fef3f2; }
+.data-table tr.row-abnormal td:first-child { box-shadow: inset 3px 0 0 #d92d20; }
+.tag-pending { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; color: #b42318; background: #fee4e2; }
+.todo-panel { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+.todo-panel h3 { margin: 0 0 8px; font-size: 14px; }
+.todo-count { color: var(--brand); font-weight: 600; }
+.retry-btn { margin-left: 8px; }

@@ -42,15 +42,19 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
-          <td>{{ row.status }}</td>
+        <tr v-for="row in rows" :key="String(row.id)" :class="{ 'row-abnormal': row.abnormal }">
+          <td v-for="column in columns" :key="column">{{ row[column] || '—' }}</td>
+          <td>
+            {{ row.status }}
+            <span v-if="row.abnormal" class="tag-pending">待整改</span>
+          </td>
           <td class="row-actions">
             <button
               v-for="action in actions"
               :key="action"
               class="link"
               type="button"
+              :disabled="submittingId === row.id"
               @click="runAction(action, row)"
             >
               {{ action }}
@@ -65,7 +69,10 @@
 
     <footer class="page-foot">
       <span>共 {{ total }} 条安全巡检记录</span>
-      <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
+      <span v-if="errorMessage" class="error-text">
+        {{ errorMessage }}
+        <button class="btn ghost retry-btn" type="button" @click="reload">重试取数</button>
+      </span>
     </footer>
   </section>
 </template>
@@ -74,30 +81,37 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  closedHazardCount,
   downloadEntries,
   listEntries,
   moduleMeta,
   runAction as applyAction,
+  statusSummary as summarize,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('safety')
-const columns = ["巡检编号", "巡检区域", "巡检项目", "发现问题", "隐患等级", "整改期限", "巡检人员", "巡检状态"]
+const columns = meta.fields
 const actions = ["提交巡检", "派发整改", "确认闭环"]
-const statuses = ["待巡检", "已巡检", "待整改", "已闭环"]
-const stats = [{"label": "待巡检区域", "value": 0}, {"label": "待整改隐患", "value": 0}, {"label": "已闭环隐患", "value": 0}]
+const statuses = meta.statuses
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
-const statusSummary = computed(() =>
-  statuses.map((status: string) => ({
-    status,
-    count: rows.value.filter((row) => String(row.status) === status).length,
-  })),
-)
+const submittingId = ref<number | null>(null)
+
+// 统计直接读数据层：已闭环条数与班组进场看到的是同一个数。
+const statusSummary = computed(() => summarize(meta.key, statuses))
+const stats = computed(() => {
+  const byStatus = new Map(statusSummary.value.map((item) => [item.status, item.count]))
+  return [
+    { label: '待巡检区域', value: byStatus.get('待巡检') ?? 0 },
+    { label: '待整改隐患', value: byStatus.get('待整改') ?? 0 },
+    { label: '已闭环隐患', value: closedHazardCount() },
+  ]
+})
 
 function resetFilters() {
   filters.value = {}
@@ -113,13 +127,22 @@ function openCreate() {
 }
 
 function runAction(action: string, row: EntryRow) {
-  errorMessage.value = ''
-  const result = applyAction(meta.key, Number(row.id), action)
-  if (!result.ok) {
-    errorMessage.value = result.message
+  if (submittingId.value !== null) {
     return
   }
-  reload()
+  errorMessage.value = ''
+  submittingId.value = Number(row.id)
+  try {
+    const result = applyAction(meta.key, Number(row.id), action)
+    if (!result.ok) {
+      errorMessage.value = result.message
+      return
+    }
+    // 头一次提交生效后立刻回列表重新取数确认。
+    reload()
+  } finally {
+    submittingId.value = null
+  }
 }
 
 function reload() {
@@ -129,6 +152,9 @@ function reload() {
     rows.value = payload.items
     total.value = payload.total
   } catch (error) {
+    // 取数失败不顶用上一轮结果：清空列表，允许重试。
+    rows.value = []
+    total.value = 0
     errorMessage.value = error instanceof Error ? error.message : '安全巡检列表读取失败'
   }
 }

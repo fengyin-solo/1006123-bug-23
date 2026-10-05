@@ -28,6 +28,7 @@ classes/
 *.jar
 *.war
 *.local
+frontend/scripts/dist-verify/
 
 # ===== 包管理器 / 构建缓存 =====
 .npm/
